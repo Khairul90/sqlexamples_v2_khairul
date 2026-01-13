@@ -1,3 +1,4 @@
+-- Active: 1767664726724@@127.0.0.1@3306@volunteersdb
 -- ==========================================
 -- 1. DDL: Create database
 -- ==========================================
@@ -38,15 +39,18 @@ INSERT INTO volunteersdb.language (language_name) VALUES
 ("English"),
 ("Dutch");
 
+ALTER TABLE volunteersdb.language
+MODIFY language_name VARCHAR(255) NOT NULL UNIQUE;
+
 -- ==========================================
 -- 5. Create table 'volunteer'
 -- ==========================================
-CREATE TABLE IF NOT EXISTS volunteersdb.volunteer (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS volunteersdb.volunteer(
+    id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     surname VARCHAR(50) NOT NULL,
     mobile VARCHAR(15) NOT NULL,
     city_id INT NOT NULL,
-    CONSTRAINT fk_city_id FOREIGN KEY (city_id) REFERENCES city(id)
+    CONSTRAINT fk_city_id FOREIGN KEY(city_id) REFERENCES volunteersdb.city(id)
 );
 
 -- Insert values to volunteers table
@@ -56,11 +60,9 @@ INSERT INTO volunteersdb.volunteer (surname, mobile, city_id) VALUES
 ('Dexter', '020 7654 4321', 3),     -- Dexter lives in Hove
 ('Stephen', '020 4321 8765', 1);    -- Stephen lives in London
 
-
 -- Q: Show all volunteers and the respective city one resides
-SELECT c.city_name, v.surname, v.mobile
-FROM volunteersdb.city c, volunteersdb.volunteer v
-where c.id = v.city_id;
+SELECT v.* , c.city_name
+FROM volunteer v JOIN city c ON v.city_id = c.id; 
 
 -- ==========================================
 -- 6. Create table 'salutation'
@@ -82,26 +84,30 @@ INSERT INTO volunteersdb.salutation (id, salutation_name) VALUES
 -- ==========================================
 
 -- a. Alter table volunteer to include column 'salutation_id'
+
 ALTER TABLE volunteersdb.volunteer
-ADD COLUMN salutation_id INT NOT NULL AFTER id;
+ADD salutation_id INT NOT NULL AFTER id;
 
 -- b. Update the salutations for each volunteer
 UPDATE volunteersdb.volunteer SET salutation_id = 1 WHERE id = 1; -- Mr. Kroner
-UPDATE volunteersdb.volunteer SET salutation_id = 2 WHERE id = 3; -- Miss James
-UPDATE volunteersdb.volunteer SET salutation_id = 3 WHERE id = 2; -- Mrs. Dexter
+UPDATE volunteersdb.volunteer SET salutation_id = 2 WHERE id = 2; -- Miss. James
+UPDATE volunteersdb.volunteer SET salutation_id = 3 WHERE id = 3; -- Mrs. Dexter
 UPDATE volunteersdb.volunteer SET salutation_id = 1 WHERE id = 4; -- Mr. Stephen
+
+SELECT s.salutation_name, v.surname
+FROM volunteer v JOIN salutation s ON v.salutation_id = s.id;
 
 -- c. Add constraint where volunteer table salutation_id references id from table salutation
 ALTER TABLE volunteersdb.volunteer
-ADD CONSTRAINT fk_salutation_id FOREIGN KEY (salutation_id) REFERENCES salutation(id);
+ADD CONSTRAINT fk_salutation_id FOREIGN KEY (salutation_id) REFERENCES volunteersdb.salutation(id);
 
--- d. Create the referenential integrity between volunteer and language
+-- d. Create the JUNCTION table between volunteer and language
 CREATE TABLE IF NOT EXISTS volunteersdb.volunteer_language(
-	volunteer_id INT NOT NULL, 	-- volunteer_id
-    language_id INT NOT NULL, 	-- language_id
-    PRIMARY KEY (volunteer_id, language_id) 														-- composite key (volunteer_id & language_id)
-    CONSTRAINT fk_volunteer_id FOREIGN KEY (volunteer_id) REFERENCES volunteersdb.volunteer(id),	-- constraint between table volunteer
-    CONSTRAINT fk_language_id FOREIGN KEY (language_id) REFERENCES volunteersdb.language(id),		-- constraint between table language
+    volunteer_id INT NOT NULL,
+    language_id INT NOT NULL,
+    PRIMARY KEY (volunteer_id, language_id), -- composite key
+    CONSTRAINT fk_volunteer_id FOREIGN KEY(volunteer_id) REFERENCES volunteersdb.volunteer(id),
+    CONSTRAINT fk_language_id FOREIGN KEY(language_id) REFERENCES volunteersdb.language(id)
 );
 
 -- e. Insert volunteers and languages associated
@@ -117,12 +123,12 @@ INSERT INTO volunteersdb.volunteer_language(volunteer_id, language_id) VALUES
 -- =============================================================================
 -- 8. Create table 'volunteer_hour' to manage the hours a volunteer contributes
 -- =============================================================================
-CREATE TABLE IF NOT EXISTS volunteersdb.volunteer_hour(
-	id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, 													 -- id
-    volunteer_id INT NOT NULL, 																		 -- volunteer_id (foreign key)
-    hours INT NOT NULL, 																			 -- hours
-    created_at DATETIME ON UPDATE CURRENT_TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 						 -- create_at
-    CONSTRAINT fk_volunteer_hour_id FOREIGN KEY (volunteer_id) REFERENCES volunteersdb.volunteer(id) -- constraint
+CREATE TABLE volunteersdb.volunteer_hour(
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    volunteer_id INT NOT NULL,
+    hour INT NOT NULL,  
+    created_at DATETIME ON UPDATE CURRENT_TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT fk_hour_volunteer_id FOREIGN KEY (volunteer_id) REFERENCES volunteersdb.volunteer(id)
 );
 
 -- Insert the hours each volunteer rakes up per event
@@ -152,57 +158,137 @@ SELECT v.surname, v.mobile, c.city_name
 FROM volunteer v, city c
 WHERE v.city_id = c.id;
 
--- 'Kroner','020 1234 5678','London'
--- 'Stephen','020 4321 8765','London'
--- 'James','020 5678 1234','Bristol'
--- 'Dexter','020 7654 4321','Hove'
-
 -- Q3. Use a JOIN (INNER JOIN) to show a volunteer's details (mobile) and the city lived in
 SELECT v.surname, v.mobile, c.city_name
-FROM volunteer v JOIN city c
-ON v.city_id = c.id;
-
--- 'Kroner', '020 1234 5678', 'London'
--- 'Stephen', '020 4321 8765', 'London'
--- 'James', '020 5678 1234', 'Bristol'
--- 'Dexter', '020 7654 4321', 'Hove'
+FROM volunteer v INNER JOIN city c ON v.city_id = c.id;
 
 -- Q4. Show the surname, mobile and city name of each volunteer residing in "London" or "Bristol"
 -- Note: Use a JOIN to relate tables volunteer - city
 -- Note: Use a WHERE clause to set up a condition to displaying 
 SELECT v.surname, v.mobile, c.city_name
-FROM volunteer v JOIN city c
-ON v.city_id = c.id
+FROM volunteer v INNER JOIN city c ON v.city_id = c.id
 WHERE c.city_name IN ("London", "Bristol");
-
--- 'Kroner','020 1234 5678','London'
--- 'Stephen','020 4321 8765','London'
--- 'James','020 5678 1234','Bristol'
 
 -- Q5. Display volunteers who speaks German
 -- Note: relationship table is involved include: volunteer -< volunteer_langauge >- language
+-- Challenge: Adding the saluation to each name.
+
 SELECT v.surname, l.language_name
-FROM volunteer v
-JOIN volunteer_language vl
+FROM volunteer v 
+JOIN volunteer_language vl 
 ON v.id = vl.volunteer_id
-JOIN language l
+JOIN language l 
 ON l.id = vl.language_id
-WHERE l.language_name LIKE "g%";
+WHERE LOWER(l.language_name) IN ("german"); -- where LOWER(l.language_name) = "german"
+-- WHERE LOWER(l.language_name) LIKE "g%";  -- this is a wild card search
 
 -- Q6. Count the number of volunteers in each city
 -- Note: Aggregate function COUNT() is applied
 SELECT COUNT(v.city_id) AS "Number of Volunteers", c.city_name
-FROM volunteer v JOIN city c
-ON v.city_id = c.id
-GROUP BY c.city_name
-ORDER BY c.city_name DESC; -- DEFAULT IN ASCENDING ORDER
-
-SELECT COUNT(v.city_id) AS `Number of volunteers`, c.city_name
 FROM volunteer v JOIN city c 
 ON v.city_id = c.id
 GROUP BY c.city_name
-ORDER BY `Number of volunteers` DESC -- use aliases for sorting (back ticks used)
-LIMIT 25;							 -- set the limt on the records to display
+ORDER BY c.city_name DESC;
 
+
+-- SIMPLE USE OF AN AGRREGATE FUNCTION (Total number of volunteers)
+SELECT COUNT(volunteer.id) AS "Total number of volunteers"
+FROM volunteer;
+
+-- Q7. Which city do most volunteers come from? (Using JOIN and GROUP BY AND LIMIT)
+SELECT COUNT(v.city_id) AS "Number of volunteers", c.city_name
+FROM volunteer v JOIN city c ON v.city_id = c.id
+GROUP BY c.city_name
+ORDER BY `Number of volunteers` -- using the alias as the sort parameter
+LIMIT 10;                       -- limits the results returned
+
+-- Q8. Display volunteers who speak MORE THAN ONE language (COUNT, GROUP BY, HAVING)
+SELECT COUNT(v.id) AS "Number of languages spoken", v.surname
+FROM volunteer v JOIN volunteer_language vl ON v.id = vl.volunteer_id
+GROUP BY v.surname
+HAVING `Number of languages spoken` > 1;
+
+-- Q9. Display the languages spoken by volunteers in the database (DISTINCT)
+SELECT DISTINCT(l.language_name)
+FROM language l JOIN volunteer_language vl ON l.id = vl.language_id;
+
+-- 10. Display the number of distinct cities from volunteers (DISTINCT)
+SELECT COUNT(DISTINCT c.city_name) AS "Number of Cities"
+FROM volunteer v JOIN city c ON v.city_id = c.id;
+
+-- 11. Display the least number of hours clocked by a volunteer (MIN)
+SELECT MIN(vh.hours) AS "Minimum hours clocked"
+FROM volunteer_hour vh;
+
+SELECT v.surname, vh.hours
+FROM volunteer v JOIN volunteer_hour vh ON v.id = vh.volunteer_id
+WHERE vh.hours = (
+    SELECT MIN(hours) FROM volunteer_hour   -- sub query on min hours in the table
+);
+
+-- 12. Display the most number of hours clocked by a volunteer (MAX)
+SELECT MAX(vh.hours) AS "Maximum hours clocked"
+FROM volunteer_hour vh;
+
+SELECT v.surname, vh.hours
+FROM volunteer v JOIN volunteer_hour vh ON v.id = vh.volunteer_id
+WHERE vh.hours = (
+    SELECT MAX(hours) FROM volunteer_hour   -- sub query on max hours in the table
+);
+
+/* * There is an alternative to the above answer. To demo later. */
+
+-- 13. display the total volunteered hours per volunteer (SUM)
+SELECT SUM(vh.hours), v.surname
+FROM volunteer_hour vh JOIN volunteer v ON vh.volunteer_id = v.id
+GROUP BY v.surname;
+
+-- 14. Display the average volunteered hours per volunteer (AVG)
+SELECT AVG(vh.hours), v.surname
+FROM volunteer_hour vh JOIN volunteer v ON vh.volunteer_id = v.id
+GROUP BY v.surname;
+
+-- Kroner: 13.5 (27 hrs / 2 times)
+-- James: 32.0 (32 hrs / 1 time)
+-- Dexter: 7.6 (23 hrs / 3 times)
+
+-- 15. Display the occasions each volunteer put up more than 1O hours per visit (case expression)
+SELECT v.surname, 
+SUM(CASE WHEN vh.hours > 10 THEN 1 ELSE 0 END) -- we only want to extract those hours > 10
+FROM volunteer v JOIN volunteer_hour vh ON v.id = vh.volunteer_id
+GROUP BY v.surname;
+
+-- Kroner: 1 x 15hr (✅), 1 x 12hr (✅)                 = 2 times more than 10 hours
+-- James : 1 x 32hr (✅)                                = 1 time more than 10 hours 
+-- Dexter: 1 x 11hr (✅), 1 x 7hr (❌), 1 x 5 hr (❌)   =  1 time more than 10 hours
+
+-- 16. Display the cumulative volunteer hours from all volunteers (sub-query)
+SELECT SUM(`Total Hours Volunteered`) AS "Cumulative Voluteer Hours"
+FROM (
+    SELECT SUM(vh.hours) AS "Total Hours Volunteered"   -- derived table
+    FROM volunteer v JOIN volunteer_hour vh
+    ON v.id = vh.volunteer_id
+    GROUP BY vh.volunteer_id
+) AS `Cumulative`;                                      -- derived table MUST be given a name to be used
+
+-- step 1: sub-query returns 27, 32, 23 from all the volunteers' hours
+-- step 2: 
+--  > outer query uses the returned results from the sub-query, and
+--  > sums up all the data
+
+-- 17. Display the least number of hours clocked CUMMULATIVELY from the volunteers
+
+SELECT SUM(vh.hours) AS "Least Hours Volunteered", v.surname AS `Volunteer Surname`
+FROM volunteer_hour vh JOIN volunteer v ON vh.volunteer_id = v.id
+GROUP BY v.surname
+HAVING `Least Hours Volunteered` = (
+    SELECT MIN(`Total Hours Volunteered`) AS "Cumulative Volunteer Hours"
+    FROM (
+            SELECT SUM(vh.hours) AS "Total Hours Volunteered"
+            FROM volunteer v JOIN volunteer_hour vh
+            ON v.id = vh.volunteer_id
+            GROUP BY vh.volunteer_id
+    ) AS `Cumulative`
+);
 
 
